@@ -113,10 +113,10 @@ class Poll2DEnv(gym.Env):
         #
         if self.environment[self.position[0], self.position[1]] == 1:  # ship reach boundary or obstarcle
             done = True
-            reward = - (self.max_steps-self.step_no)*0.2 - self.distance_to_destiantion()  # penalize too short episodes (reaching walls immediately)
+            reward = - (self.max_steps-self.step_no)*0.5 - self.distance_to_destiantion()  # penalize too short episodes (reaching walls immediately)
         elif self.environment[self.position[0], self.position[1]] == 2:  # ship reach destination
             done = True
-            reward = 10.
+            reward = 1000.
         else: 
             self.update_state()           
             done = False
@@ -128,6 +128,7 @@ class Poll2DEnv(gym.Env):
         return self.state, float(reward), bool(done), info
 
     def reset(self):
+        self.environment, self.destination = self.generate_pool_env()
         self.position = self.position_space.sample()+1
         self.update_state() 
         self.step_no = 1

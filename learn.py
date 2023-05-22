@@ -34,9 +34,9 @@ class CustomMLP(BaseFeaturesExtractor):
         self.D = int(observation_space.shape[0])
         self.mlp = nn.Sequential(
             nn.Linear(self.D, mlp_hidden_dim),
-            nn.Sigmoid(),
-            #nn.Linear(mlp_hidden_dim, mlp_hidden_dim),
-            #nn.ReLU(),
+            nn.ReLU(),
+            nn.Linear(mlp_hidden_dim, mlp_hidden_dim),
+            nn.ReLU(),
         )
         self.linear = nn.Sequential(nn.Linear(mlp_hidden_dim, features_dim), nn.ReLU())
 
@@ -60,7 +60,7 @@ model = PPO(
     env,
     policy_kwargs=policy_kwargs,
     verbose=True,
-    learning_rate=0.00003, 
+    learning_rate=0.0003, 
     batch_size=128
 )
 
@@ -76,7 +76,7 @@ eval_callback = EvalCallback(
 print("start learning")
 
 print(model.policy.features_extractor.mlp)
-model.learn(total_timesteps=1000_000, callback=eval_callback)
+model.learn(total_timesteps=30_000, callback=eval_callback)
 model.save(f"{folder_path}/model")
 
 
