@@ -31,9 +31,10 @@ class CustomMLP(BaseFeaturesExtractor):
     def __init__(self, observation_space, features_dim: int = 64):
         super().__init__(observation_space, features_dim)
         mlp_hidden_dim = 16
-        self.D = int(observation_space.shape[0])
+        #self.input_dim = int(observation_space.shape[0])
+        self.input_dim = int(observation_space.shape[0]*side_length)
         self.mlp = nn.Sequential(
-            nn.Linear(self.D, mlp_hidden_dim),
+            nn.Linear(self.input_dim, mlp_hidden_dim),
             nn.ReLU(),
             nn.Linear(mlp_hidden_dim, mlp_hidden_dim),
             nn.ReLU(),
@@ -42,10 +43,11 @@ class CustomMLP(BaseFeaturesExtractor):
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
         # observations are one-hot encoded
-        r =self.linear(
-            self.mlp(torch.argmax(torch.reshape(observations, (self.D,-1)), dim=1)/(side_length-1))  # argmax to decode
-        )
-        return torch.reshape(r,(1,-1))
+        #obs = torch.argmax(torch.reshape(observations, (self.input_dim,-1)), dim=1)/(side_length-1)  # one hot to float: argmax to decode
+        #r = self.linear(self.mlp(obs))
+        #return torch.reshape(r,(1,-1))
+        r = self.linear(self.mlp(observations))
+        return r
 
 policy_kwargs = dict(
     features_extractor_class=CustomMLP,
