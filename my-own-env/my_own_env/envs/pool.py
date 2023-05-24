@@ -7,7 +7,7 @@ import skimage
 
 class Poll2DEnv(gym.Env):
     """
-    Poll2DEnv contains SIDE_LENGTH x SIDE_LENGTH lattice
+    Poll2DEnv contains SIDE_LENGTH+2 x SIDE_LENGTH+2 lattice
     """
 
     metadata = {"render.modes": ["human"]}
@@ -24,7 +24,7 @@ class Poll2DEnv(gym.Env):
         self.position_space = spaces.MultiDiscrete([self.L, self.L])
         self.position = self.position_space.sample()+1
         # measurements
-        self.observation_space = spaces.MultiDiscrete([self.L, self.L, self.L, self.L, self.L, self.L])   # change to composite (two last should be box-type)
+        self.observation_space = spaces.MultiDiscrete([self.L, self.L, self.L, self.L, 2*self.L+1, 2*self.L+1])   # change to composite (two last should be box-type)
         self.state = self.observation_space.sample()
         self.update_state() 
         # actions = movements:
@@ -36,7 +36,7 @@ class Poll2DEnv(gym.Env):
         - single obstracle in form of a line with size no longer than 2/3 of the pool size
         - and destination randomly located on one of the edges
         """
-        pool = np.zeros((self.L+2, self.L+2))
+        pool = np.zeros((self.L+2, self.L+2), dtype=np.int8)
         # boundary
         pool[0,:]  = 1  
         pool[-1,:] = 1
@@ -48,19 +48,16 @@ class Poll2DEnv(gym.Env):
             obstracle_length = np.sqrt((coords[2]-coords[0])**2+(coords[3]-coords[1])**2)
         obstracle = skimage.draw.line(*coords)
         pool[obstracle] = 1
-        #
-        """
+        # descination
         select_edge = np.random.randint(4)
         if select_edge == 0:
-            destination = np.array([self.L+1, np.random.randint(self.L+2)])  # top
+            destination = np.array([self.L+1, 1+np.random.randint(self.L)]).astype(np.int8)
         elif select_edge == 1:
-            destination = np.array([0, np.random.randint(self.L+2)])         # bottom
+            destination = np.array([0, 1+np.random.randint(self.L)]).astype(np.int8)
         elif select_edge == 2:
-            destination = np.array([np.random.randint(self.L+2), 0])         # left
+            destination = np.array([1+np.random.randint(self.L), 0]).astype(np.int8)
         else:
-            destination = np.array([np.random.randint(self.L+2), self.L+1])  # right  
-        """
-        destination = np.array([0,0])  
+            destination = np.array([1+np.random.randint(self.L), self.L+1]).astype(np.int8)
         pool[destination[0], destination[1]] = 2 
         return pool, destination
 
@@ -68,18 +65,18 @@ class Poll2DEnv(gym.Env):
         # calculate 4 distances to nearby obstracle
         [x,y] = self.position
         top_sonar = self.environment[:x,y][::-1]
-        t_d = np.argwhere(top_sonar==1)[0]
+        t_d = np.argwhere(top_sonar > 0)[0]
         bottom_sonar = self.environment[x+1:,y]
-        b_d = np.argwhere(bottom_sonar==1)[0]
+        b_d = np.argwhere(bottom_sonar > 0)[0]
         left_sonar = self.environment[x,:y][::-1]
-        l_d = np.argwhere(left_sonar==1)[0]
+        l_d = np.argwhere(left_sonar > 0)[0]
         right_sonar = self.environment[x,y+1:]
-        r_d = np.argwhere(right_sonar==1)[0]        
+        r_d = np.argwhere(right_sonar > 0)[0]        
         return [t_d, b_d, l_d, r_d]
   
     def direction_to_destiantion(self):
         # calulate direction towards destination point
-        return self.position-1  # assuming destination is [0,0] 
+        return self.position - self.destination + self.L
     
     def distance_to_destiantion(self):
         # calulate distance to destination point

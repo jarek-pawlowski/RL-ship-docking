@@ -14,7 +14,7 @@ from stable_baselines3.common.env_checker import check_env
 
 import my_own_env
 
-side_length = 9
+side_length = 10
 env = gym.make('Poll2D-v0', L=side_length, max_steps=20)
 env = TimeLimit(env, max_episode_steps=100)
 
@@ -30,9 +30,9 @@ class CustomMLP(BaseFeaturesExtractor):
 
     def __init__(self, observation_space, features_dim: int = 64):
         super().__init__(observation_space, features_dim)
-        mlp_hidden_dim = 16
+        mlp_hidden_dim = 32
         #self.input_dim = int(observation_space.shape[0])
-        self.input_dim = int(observation_space.shape[0]*side_length)
+        self.input_dim = int(4*side_length+2*(2*side_length+1))
         self.mlp = nn.Sequential(
             nn.Linear(self.input_dim, mlp_hidden_dim),
             nn.ReLU(),
@@ -51,7 +51,7 @@ class CustomMLP(BaseFeaturesExtractor):
 
 policy_kwargs = dict(
     features_extractor_class=CustomMLP,
-    features_extractor_kwargs=dict(features_dim=8),
+    features_extractor_kwargs=dict(features_dim=16),
 )
 
 date = datetime.now().strftime("%Y-%m-%dT%H%M%S")
@@ -78,24 +78,23 @@ eval_callback = EvalCallback(
 print("start learning")
 
 print(model.policy.features_extractor.mlp)
-model.learn(total_timesteps=30_000, callback=eval_callback)
+model.learn(total_timesteps=300_000, callback=eval_callback)
 model.save(f"{folder_path}/model")
 
-
-distances = []
-observation = env.reset()
-env.render()
-for i in range(10):
-    action, _ = model.predict(observation, deterministic=True)
-    print(f"{env.step_no=}")
-    observation, reward, done, info = env.step(action)
-    print(f"{i=}, {action=}, {done=}, {reward=}, {env.distance_to_destiantion()=}")
-    print(observation)
-    distances.append(np.sqrt((env.destination[0]-env.position[0])**2+(env.destination[1]-env.position[1])**2))
-    env.render()
-    if done: 
-        break
-    
-print(distances)
+for _ in range(4): 
+    distances = []
+    observation = env.reset()
+    env.render() 
+    for i in range(10):
+        action, _ = model.predict(observation, deterministic=True)
+        print(f"{env.step_no=}")
+        observation, reward, done, info = env.step(action)
+        print(f"{i=}, {action=}, {done=}, {reward=}, {env.distance_to_destiantion()=}")
+        print(observation)
+        distances.append(np.sqrt((env.destination[0]-env.position[0])**2+(env.destination[1]-env.position[1])**2))
+        env.render()
+        if done: 
+            break
+    print(distances)
 
 model.policy
