@@ -1,100 +1,79 @@
 from datetime import datetime
 
 import gym
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import matplotlib.pyplot as plt
+
 from gym.wrappers import TimeLimit
 from stable_baselines3 import DQN, PPO
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.env_checker import check_env
+from stable_baselines3.common.logger import configure
+from stable_baselines3.common.env_util import make_vec_env
+
+from utils import CustomMLP
 
 import my_own_env
 
+
 side_length = 10
-env = gym.make('Poll2D-v0', L=side_length, max_steps=20)
-env = TimeLimit(env, max_episode_steps=100)
-
-check_env(env)
-
-
-class CustomMLP(BaseFeaturesExtractor):
-    """
-    :param observation_space: (gym.Space)
-    :param features_dim: (int) Number of features extracted.
-        This corresponds to the number of unit for the last layer.
-    """
-
-    def __init__(self, observation_space, features_dim: int = 64):
-        super().__init__(observation_space, features_dim)
-        mlp_hidden_dim = 32
-        #self.input_dim = int(observation_space.shape[0])
-        self.input_dim = int(4*side_length+2*(2*side_length+1))
-        self.mlp = nn.Sequential(
-            nn.Linear(self.input_dim, mlp_hidden_dim),
-            nn.ReLU(),
-            nn.Linear(mlp_hidden_dim, mlp_hidden_dim),
-            nn.ReLU(),
-        )
-        self.linear = nn.Sequential(nn.Linear(mlp_hidden_dim, features_dim), nn.ReLU())
-
-    def forward(self, observations: torch.Tensor) -> torch.Tensor:
-        # observations are one-hot encoded
-        #obs = torch.argmax(torch.reshape(observations, (self.input_dim,-1)), dim=1)/(side_length-1)  # one hot to float: argmax to decode
-        #r = self.linear(self.mlp(obs))
-        #return torch.reshape(r,(1,-1))
-        r = self.linear(self.mlp(observations))
-        return r
-
-policy_kwargs = dict(
-    features_extractor_class=CustomMLP,
-    features_extractor_kwargs=dict(features_dim=16),
-)
 
 date = datetime.now().strftime("%Y-%m-%dT%H%M%S")
 folder_path = f"./results/pool2D_endreward_finish/{date}_L{side_length}"
-# model = PPO("MlpPolicy", env, tensorboard_log=folder_path)
+
+env = gym.make('Poll2D-v0', L=side_length, max_steps=20)
+env = TimeLimit(env, max_episode_steps=100)
+check_env(env)
+vec_env = make_vec_env('Poll2D-v0', n_envs=8, env_kwargs=dict(L=side_length, max_steps=20))
+
+policy_kwargs = dict(
+    features_extractor_class=CustomMLP,
+    features_extractor_kwargs=dict(features_dim=32, side_length=side_length)
+)
+
 model = PPO(
     "MlpPolicy",
-    env,
+    vec_env,
     policy_kwargs=policy_kwargs,
     verbose=True,
-    learning_rate=0.0003, 
-    batch_size=128
+    learning_rate=0.0001, 
+    batch_size=128,
+#    n_steps=4096,
+#    n_epochs=3,
 )
+print(model.policy.features_extractor.mlp)
 
 eval_callback = EvalCallback(
     env,
     best_model_save_path=folder_path + "/best/",
     log_path=folder_path + "/logs/",
     n_eval_episodes=20,
-    deterministic=True,
+    deterministic=False,
     render=False,
 )
 
-print("start learning")
+new_logger = configure(folder_path + "/logs/", ["stdout", "csv"])  # "tensorboard"
+model.set_logger(new_logger)
 
-print(model.policy.features_extractor.mlp)
-model.learn(total_timesteps=300_000, callback=eval_callback)
+
+print("start learning")
+model.learn(total_timesteps=1000_000, callback=eval_callback)
 model.save(f"{folder_path}/model")
 
+# 
 for _ in range(4): 
     distances = []
     observation = env.reset()
     env.render() 
-    for i in range(10):
+    for i in range(20):
         action, _ = model.predict(observation, deterministic=True)
         print(f"{env.step_no=}")
         observation, reward, done, info = env.step(action)
         print(f"{i=}, {action=}, {done=}, {reward=}, {env.distance_to_destiantion()=}")
         print(observation)
-        distances.append(np.sqrt((env.destination[0]-env.position[0])**2+(env.destination[1]-env.position[1])**2))
+        distances.append(env.distance_to_destiantion())
         env.render()
         if done: 
             break
     print(distances)
+    print("\n")
 
 model.policy
